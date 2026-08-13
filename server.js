@@ -2,49 +2,84 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const { GoogleGenAI } = require("@google/genai");
+const path = require("path");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
+
+// ===============================
+// MIDDLEWARE
+// ===============================
 
 app.use(cors());
 app.use(express.json());
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
+// Serve frontend files
+app.use(express.static(path.join(__dirname, "frontend")));
+
+// ===============================
+// GEMINI AI CONFIGURATION
+// ===============================
+
+const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const model = ai.getGenerativeModel({
+    model: "gemini-2.5-flash"
 });
 
+// ===============================
+// HOME ROUTE
+// ===============================
+
 app.get("/", (req, res) => {
-    res.send("AI Chatbot Backend is Running!");
+    res.sendFile(path.join(__dirname, "frontend", "index.html"));
 });
+
+// ===============================
+// CHAT ROUTE
+// ===============================
 
 app.post("/chat", async (req, res) => {
     try {
         const { message } = req.body;
 
-        if (!message) {
+        // Check if message exists
+        if (!message || message.trim() === "") {
             return res.status(400).json({
                 error: "Message is required"
             });
         }
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3.6-flash",
-            contents: message
-        });
+        console.log("User message:", message);
+
+        // Send message to Gemini
+        const result = await model.generateContent(message);
+
+        const response = result.response;
+        const reply = response.text();
+
+        console.log("Gemini response generated successfully");
 
         res.json({
-            reply: response.text
+            reply: reply
         });
 
     } catch (error) {
-        console.error("Error:", error.message);
+        console.error("Gemini API Error:", error);
 
         res.status(500).json({
-            error: "Failed to generate response"
+            error: "Failed to generate response",
+            details: error.message
         });
     }
 });
+
+// ===============================
+// SERVER
+// ===============================
+
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
